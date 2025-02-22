@@ -2,31 +2,11 @@ name: Build OnePlus_Kernel
 on:
   workflow_dispatch:
     inputs:
-      CPU:
-        description: "分支"
-        required: true
-        default: 'sm8650'
-      FEIL:
-        description: "配置文件"
-        required: true
-        default: 'oneplus_ace3_pro_v'
-      CPUD:
-        description: "处理器代号"
-        required: true
-        default: 'pineapple'
-      ANDROID_VERSION:
-        description: "内核安卓版本"
-        required: true
-        default: 'android14'
-      KERNEL_VERSION:
-        description: "内核版本"
-        required: true
-        default: '6.1'
-      KERNEL_NAME:
+     KERNEL_NAME:
         description: "修改内核名称"
         required: true
         default: '-android14-11-o-g1132d864665d'
-      kernelsu_variant:
+     kernelsu_variant:
         description: "选择 KSU"
         required: true
         type: choice
@@ -37,7 +17,7 @@ on:
           - MKSU-SKN
           - RKSU
         default: Kernel
-      kernelsu_version:
+     Kernelsu_version:
         description: "选择 KSU 版本"
         required: true
         type: choice
@@ -46,7 +26,7 @@ on:
           - tag
           - main
         default: main
-      SUSFS_ENABLED:
+     SUSFS_ENABLED:
         description: "添加 SUSFS"
         required: true
         type: boolean
@@ -85,7 +65,7 @@ jobs:
       - name: Initialize repo and sync
         run: |
          mkdir kernel_workspace && cd kernel_workspace
-         repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/${{ github.event.inputs.CPU }} -m ${{ github.event.inputs.FEIL }}.xml --depth=1
+         repo init -u https://github.com/ztc1997/android_gki_kernel_5.10_common -b android12-5.10-2024-11 --depth=1
          repo sync
          rm kernel_platform/common/android/abi_gki_protected_exports_* || echo "No protected exports!"
          rm kernel_platform/msm-kernel/android/abi_gki_protected_exports_* || echo "No protected exports!"
