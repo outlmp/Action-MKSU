@@ -45,6 +45,161 @@ jobs:
     runs-on: ubuntu-latest
     env:
       KERNEL_DIR: android_gki_kernel_5.10_common
+      ARCH: arm64
+      CROSS_COMPILE: aarch64-linux-gnu-
+      CC: clang
+      LD: ld.lld
+
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt upgrade -y
+          sudo apt install -y git build-essential flex bison libssl-dev libelf-dev binutils clang lld
+
+      - name: Clone kernel source
+        run: |
+          git clone --depth=1 https://github.com/ztc1997/android_gki_kernel_5_10_common.git -b android12-5.10-2024-11 $KERNEL_DIR
+
+      - name: KernelSU version setup
+        if: contains('Official Next MKSU-SKN RKSU', github.event.inputs.kernelsu_variant)
+        run: |
+          if [[ "${{ github.event.inputs.kernelsu_version }}" == "tag" ]]; then
+            echo "BRANCH=-" >> $GITHUB_ENV
+          elif [[ "${{ github.event.inputs.kernelsu_version }}" == "main" ]]; then
+            case "${{ github.event.inputs.kernelsu_variant }}" in
+              "Next") echo "BRANCH=-s next" >> $GITHUB_ENV ;;
+              *) echo "BRANCH=-s susfs" >> $GITHUB_ENV ;;
+            esac
+          fi
+
+      - name: Apply KernelSU
+        if: contains('Official Next MKSU-SKN RKSU', github.event.inputs.kernelsu_variant)
+        run: |
+          cd $KERNEL_DIR
+          case "${{ github.event.inputs.kernelsu_variant }}" in
+            "Official")
+              curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash ${{ env.BRANCH }}
+              ;;
+            "Next")
+              curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash ${{ env.BRANCH }}
+              ;;
+            "MKSU-SKN")
+              curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/susfs/kernel/setup.sh" | bash ${{ env.BRANCH }}
+              ;;
+            "RKSU")
+              curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
+              ;;
+          esac
+
+      - name: Apply SUSFS Patches
+        if: ${{ github.event.inputs.SUSFS_ENABLED == 'true' }}
+        run: |
+          cd $KERNEL_DIR
+          git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}
+          cp -r susfs4ksu/kernel_patches/fs/* fs/
+          cp -r susfs4ksu/kernel_patches/include/linux/* include/linux/
+          patch -p1 < susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}.patch || true
+
+      - name: Configure kernel
+        run: |
+          cd $KERNEL_DIR
+          make ${{ env.ARCH }}_defconfig
+          ./scripts/config --enable MODULES
+          ./scripts/config --enable KPROBES
+
+      - name: Build kernel
+        run: |
+          cd $KERNEL_DIR
+          make -j$(nproc) ARCH=${{ env.ARCH }} CC=${{ env.CC }} LD=${{ env.LD }} CROSS_COMPILE=${{ env.CROSS_COMPILE }}
+          cp arch/${{ env.ARCH }}/boot/Image.gz AnyKernel3/
+
+      - name: Package AnyKernel3
+        run: |
+          cd $KERNEL_DIR/AnyKernel3
+          zip -r9 Kernel-${{ github.event.inputs.KERNEL_NAME }}.zip *
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GKI_Kernel_${{ github.event.inputs.KERNEL_NAME }}
+          path: |
+            $KERNEL_DIR/arch/${{ env.ARCH }}/boot/Image.gz
+            $KERNEL_DIR/AnyKernel3/*.zip      - name: Apply KernelSU
+        if: contains('Official Next MKSU-SKN RKSU', github.event.inputs.kernelsu_variant)
+        run: |
+          cd $KERNEL_DIR
+          case "${{ github.event.inputs.kernelsu_variant }}" in
+            "Official")
+              curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash ${{ env.BRANCH }}
+              ;;
+            "Next")
+              curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash ${{ env.BRANCH }}
+              ;;
+            "MKSU-SKN")
+              curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/susfs/kernel/setup.sh" | bash ${{ env.BRANCH }}
+              ;;
+            "RKSU")
+              curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
+              ;;
+          esac
+
+      - name: Apply SUSFS Patches
+        if: ${{ github.event.inputs.SUSFS_ENABLED == 'true' }}
+        run: |
+          cd $KERNEL_DIR
+          git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}
+          cp -r susfs4ksu/kernel_patches/fs/* fs/
+          cp -r susfs4ksu/kernel_patches/include/linux/* include/linux/
+          patch -p1 < susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}.patch || true
+
+      - name: Configure kernel
+        run: |
+          cd $KERNEL_DIR
+          make ${{ env.ARCH }}_defconfig
+          ./scripts/config --enable MODULES
+          ./scripts/config --enable KPROBES
+
+      - name: Build kernel
+        run: |
+          cd $KERNEL_DIR
+          make -j$(nproc) ARCH=${{ env.ARCH }} CC=${{ env.CC }} LD=${{ env.LD }} CROSS_COMPILE=${{ env.CROSS_COMPILE }}
+          cp arch/${{ env.ARCH }}/boot/Image.gz AnyKernel3/
+
+      - name: Package AnyKernel3
+        run: |
+          cd $KERNEL_DIR/AnyKernel3
+          zip -r9 Kernel-${{ github.event.inputs.KERNEL_NAME }}.zip *
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GKI_Kernel_${{ github.event.inputs.KERNEL_NAME }}
+          path: |
+            $KERNEL_DIR/arch/${{ env.ARCH }}/boot/Image.gz
+            $KERNEL_DIR/AnyKernel3/*.zip      SUSFS_ENABLED:
+        description: "添加 SUSFS"
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KERNEL_DIR: android_gki_kernel_5.10_common
 
     steps:
       - name: Maximize build space
