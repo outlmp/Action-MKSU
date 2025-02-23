@@ -67,7 +67,7 @@ jobs:
 
       - name: Clone kernel source
         run: |
-          git clone --depth=1 https://github.com/ztc1997/android_gki_kernel_5_10_common -b android12-5.10-2025-02 $KERNEL_DIR
+          git clone --depth=1 https://github.com/ztc1997/android_gki_kernel_5.10_common -b android12-5.10-2025-02 $KERNEL_DIR
 
       - name: KernelSU version setup
         if: contains('Official Next MKSU-SKN RKSU', github.event.inputs.kernelsu_variant)
